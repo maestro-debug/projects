@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Clock Rec">
+<meta name="theme-color" content="#0b0f19">
+<link rel="apple-touch-icon" href="icon.png">
+<title>Clock Recorder</title>
+<style>
+  :root{
+    --bg:#0b0f19; --panel:#141a29; --line:#242c40; --text:#e6ebf5; --muted:#8a93a8;
+    --red:#ff3b30; --green:#34c759;
+    --st:env(safe-area-inset-top); --sb:env(safe-area-inset-bottom);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    -webkit-user-select:none;user-select:none;overscroll-behavior:none}
+  button{font:inherit;color:inherit;border:none;background:none;cursor:pointer}
+
+  /* ---------- Home screen ---------- */
+  #home{min-height:100%;padding:calc(var(--st) + 20px) 20px calc(var(--sb) + 24px);display:flex;flex-direction:column;gap:18px}
+  header h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.5px}
+  #miniClock{margin:4px 0 0;font-variant-numeric:tabular-nums;font-size:15px;color:var(--muted)}
+
+  .seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
+  .seg button{flex:1;padding:10px;border-radius:9px;font-weight:600;font-size:15px;color:var(--muted)}
+  .seg button.on{background:var(--line);color:var(--text)}
+
+  /* Video options card */
+  #videoOpts{display:none;flex-direction:column;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  #videoOpts.show{display:flex}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .row label{font-size:15px;font-weight:600}
+  .row .sub{display:block;font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
+  .row .seg{flex:0 0 170px;background:var(--bg)}
+  .row .seg button{padding:8px;font-size:14px}
+  /* iOS-style switch */
+  .switch{position:relative;width:51px;height:31px;flex:0 0 51px}
+  .switch input{opacity:0;width:0;height:0}
+  .switch span{position:absolute;inset:0;background:var(--line);border-radius:31px;transition:.2s}
+  .switch span::before{content:"";position:absolute;width:27px;height:27px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s}
+  .switch input:checked + span{background:var(--green)}
+  .switch input:checked + span::before{transform:translateX(20px)}
+
+  #recWrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:6px 0}
+  #recBtn{width:96px;height:96px;border-radius:50%;border:5px solid var(--text);display:grid;place-items:center}
+  #recBtn span{width:70px;height:70px;border-radius:50%;background:var(--red);transition:transform .15s}
+  #recBtn:active span{transform:scale(.9)}
+  #recWrap small{color:var(--muted)}
+
+  h2{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600}
+  #list{display:flex;flex-direction:column;gap:10px}
+  .item{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .item .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .item .name{font-weight:600;font-size:15px}
+  .item .meta{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .item audio,.item video{width:100%;margin-top:10px;border-radius:10px;background:#000}
+  .item .acts{display:flex;gap:8px;margin-top:10px}
+  .item .acts button{flex:1;padding:9px;border-radius:10px;background:var(--line);font-size:14px;font-weight:600}
+  .item .acts button.del{color:var(--red)}
+  .empty{color:var(--muted);text-align:center;padding:30px 0;font-size:14px}
+  #msg{color:#ffcc00;font-size:13px;text-align:center;min-height:1em}
+
+  /* ---------- Recording (clock) screen ---------- */
+  #recScreen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:space-between;
+    background:radial-gradient(circle at 50% 40%,#1a2340 0%,#0b0f19 70%);
+    padding:calc(var(--st) + 18px) 20px calc(var(--sb) + 28px);z-index:10}
+  #recScreen.show{display:flex}
+  .topbar{width:100%;display:flex;justify-content:center;position:relative}
+  .status{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+    padding:8px 16px;border-radius:999px;font-variant-numeric:tabular-nums;font-weight:600}
+  .camTag{font-size:12px;color:var(--muted);font-weight:500}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--red);animation:blink 1s infinite}
+  .paused .dot{animation:none;background:#ffcc00}
+  @keyframes blink{50%{opacity:.25}}
+  #clockArea{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;width:100%}
+  #clock{width:min(82vw,52vh);height:min(82vw,52vh)}
+  #digital{font-size:clamp(44px,15vw,84px);font-weight:200;letter-spacing:-1px;font-variant-numeric:tabular-nums;line-height:1}
+  #date{color:var(--muted);font-size:16px;margin-top:-8px}
+  /* Preview: hidden by default; kept rendering off-screen-safe via opacity so recording is unaffected */
+  #preview{position:absolute;top:calc(var(--st) + 70px);right:16px;width:90px;height:120px;object-fit:cover;border-radius:12px;
+    border:2px solid rgba(255,255,255,.2);opacity:0;pointer-events:none;transition:opacity .2s}
+  #preview.visible{opacity:1}
+  #preview.mirror{transform:scaleX(-1)}
+  .ctrls{display:flex;gap:22px;align-items:center}
+  .cbtn{width:62px;height:62px;border-radius:50%;background:rgba(255,255,255,.1);display:grid;place-items:center;font-size:12px;font-weight:600;text-align:center;line-height:1.1}
+  .cbtn.hidden{visibility:hidden}
+  #stopBtn{width:84px;height:84px;border-radius:50%;border:5px solid var(--text);display:grid;place-items:center}
+  #stopBtn span{width:34px;height:34px;border-radius:8px;background:var(--red)}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<main id="home">
+  <header>
+    <h1>Clock Recorder</h1>
+    <p id="miniClock">--:--:--</p>
+  </header>
+
+  <div class="seg" id="modeSeg">
+    <button data-mode="audio" class="on">🎙️ Audio</button>
+    <button data-mode="video">🎥 Video</button>
+  </div>
+
+  <!-- Video options (only visible in Video mode) -->
+  <div id="videoOpts">
+    <div class="row">
+      <label>Camera</label>
+      <div class="seg" id="camSeg">
+        <button data-cam="user" class="on">Front</button>
+        <button data-cam="environment">Back</button>
+      </div>
+    </div>
+    <div class="row">
+      <label>Show camera preview<span class="sub">Off = only the clock is shown while recording</span></label>
+      <label class="switch"><input type="checkbox" id="previewToggle"><span></span></label>
+    </div>
+  </div>
+
+  <div id="recWrap">
+    <button id="recBtn" aria-label="Start recording"><span></span></button>
+    <small id="recHint">Tap to start recording</small>
+  </div>
+  <div id="msg"></div>
+
+  <h2>Recordings</h2>
+  <div id="list"></div>
+</main>
+
+<!-- RECORDING SCREEN WITH CLOCK BACKGROUND -->
+<section id="recScreen">
+  <div class="topbar">
+    <div class="status" id="status"><span class="dot"></span><span id="elapsed">00:00</span><span class="camTag" id="camTag"></span></div>
+  </div>
+  <video id="preview" muted playsinline autoplay></video>
+  <div id="clockArea">
+    <canvas id="clock"></canvas>
+    <div id="digital">--:--:--</div>
+    <div id="date"></div>
+  </div>
+  <div class="ctrls">
+    <button class="cbtn" id="pauseBtn">Pause</button>
+    <button id="stopBtn" aria-label="Stop"><span></span></button>
+    <button class="cbtn" id="dimBtn">Dim</button>
+    <button class="cbtn" id="pvBtn">Show<br>Preview</button>
+  </div>
+</section>
+
+<script>
+/* ========== Storage (IndexedDB – recordings stay on the phone) ========== */
+const DB='clockrec', STORE='recs';
+const dbp=new Promise((res,rej)=>{const r=indexedDB.open(DB,1);
+  r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:'id'});
+  r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});
+const tx=async(mode,fn)=>{const db=await dbp;return new Promise((res,rej)=>{
+  const t=db.transaction(STORE,mode);const s=t.objectStore(STORE);const r=fn(s);
+  t.oncomplete=()=>res(r&&r.result);t.onerror=()=>rej(t.error);});};
+const saveRec=r=>tx('readwrite',s=>s.put(r));
+const delRec=id=>tx('readwrite',s=>s.delete(id));
+const allRecs=()=>tx('readonly',s=>s.getAll());
+
+/* ========== Helpers ========== */
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,'0');
+const fmtDur=s=>{s=Math.round(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+':':'')+pad(m)+':'+pad(x);};
+const fmtTime=d=>pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+const msg=t=>{$('msg').textContent=t||'';};
+
+/* ========== Settings (remembered on the phone) ========== */
+const settings=Object.assign({mode:'audio',cam:'user',preview:false},
+  JSON.parse(localStorage.getItem('clockrec-settings')||'{}'));
+const saveSettings=()=>localStorage.setItem('clockrec-settings',JSON.stringify(settings));
+
+function applySettingsUI(){
+  [...$('modeSeg').children].forEach(b=>b.classList.toggle('on',b.dataset.mode===settings.mode));
+  [...$('camSeg').children].forEach(b=>b.classList.toggle('on',b.dataset.cam===settings.cam));
+  $('previewToggle').checked=settings.preview;
+  $('videoOpts').classList.toggle('show',settings.mode==='video');
+  $('recHint').textContent=settings.mode==='video'
+    ?`Tap to record video · ${settings.cam==='user'?'Front':'Back'} camera`
+    :'Tap to start recording';
+}
+$('modeSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;settings.mode=b.dataset.mode;saveSettings();applySettingsUI();};
+$('camSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;settings.cam=b.dataset.cam;saveSettings();applySettingsUI();};
+$('previewToggle').onchange=e=>{settings.preview=e.target.checked;saveSettings();};
+
+/* ========== Clock drawing ========== */
+const cv=$('clock'),ctx=cv.getContext('2d');
+function sizeCanvas(){const r=cv.getBoundingClientRect(),d=devicePixelRatio||1;
+  cv.width=r.width*d;cv.height=r.height*d;ctx.setTransform(d,0,0,d,0,0);}
+function drawClock(now){
+  const w=cv.getBoundingClientRect().width,c=w/2,R=c*0.94;
+  ctx.clearRect(0,0,w,w);
+  ctx.beginPath();ctx.arc(c,c,R,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.035)';ctx.fill();
+  ctx.lineWidth=2;ctx.strokeStyle='rgba(255,255,255,.18)';ctx.stroke();
+  for(let i=0;i<60;i++){const a=i*Math.PI/30,big=i%5===0;
+    ctx.beginPath();ctx.lineCap='round';
+    ctx.moveTo(c+Math.sin(a)*(R-(big?R*.11:R*.05)),c-Math.cos(a)*(R-(big?R*.11:R*.05)));
+    ctx.lineTo(c+Math.sin(a)*(R-R*.02),c-Math.cos(a)*(R-R*.02));
+    ctx.lineWidth=big?3.5:1.2;ctx.strokeStyle=big?'#e6ebf5':'rgba(255,255,255,.35)';ctx.stroke();}
+  ctx.fillStyle='rgba(230,235,245,.85)';ctx.font=`300 ${R*.13}px -apple-system,sans-serif`;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  for(let n=1;n<=12;n++){const a=n*Math.PI/6;ctx.fillText(n,c+Math.sin(a)*R*.74,c-Math.cos(a)*R*.74);}
+  const ms=now.getMilliseconds(),s=now.getSeconds()+ms/1000,m=now.getMinutes()+s/60,h=now.getHours()%12+m/60;
+  const hand=(ang,len,wid,col,tail=0)=>{ctx.beginPath();ctx.lineCap='round';
+    ctx.moveTo(c-Math.sin(ang)*tail,c+Math.cos(ang)*tail);ctx.lineTo(c+Math.sin(ang)*len,c-Math.cos(ang)*len);
+    ctx.lineWidth=wid;ctx.strokeStyle=col;ctx.stroke();};
+  hand(h*Math.PI/6,R*.5,7,'#e6ebf5');
+  hand(m*Math.PI/30,R*.75,4.5,'#e6ebf5');
+  hand(s*Math.PI/30,R*.85,1.8,'#ff3b30',R*.15);
+  ctx.beginPath();ctx.arc(c,c,6,0,Math.PI*2);ctx.fillStyle='#ff3b30';ctx.fill();
+}
+function tick(){const now=new Date();
+  $('miniClock').textContent=fmtTime(now)+'  ·  '+now.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+  if($('recScreen').classList.contains('show')){
+    drawClock(now);$('digital').textContent=fmtTime(now);
+    $('date').textContent=now.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    if(rec&&rec.state==='recording')$('elapsed').textContent=fmtDur(elapsed());}
+  requestAnimationFrame(tick);}
+addEventListener('resize',sizeCanvas);
+
+/* ========== Preview show/hide ========== */
+function setPreview(on){
+  $('preview').classList.toggle('visible',on);
+  $('pvBtn').innerHTML=on?'Hide<br>Preview':'Show<br>Preview';
+}
+$('pvBtn').onclick=()=>setPreview(!$('preview').classList.contains('visible'));
+
+/* ========== Recording ========== */
+let rec,stream,chunks=[],startT=0,pausedTotal=0,pauseStart=0,wakeLock=null,mime='',curMode='audio';
+const elapsed=()=>((rec&&rec.state==='paused'?pauseStart:Date.now())-startT-pausedTotal)/1000;
+function pickMime(kind){const opts=kind==='audio'
+  ?['audio/mp4','audio/webm;codecs=opus','audio/webm']
+  :['video/mp4','video/webm;codecs=vp9,opus','video/webm'];
+  return opts.find(t=>window.MediaRecorder&&MediaRecorder.isTypeSupported(t))||'';}
+async function lockScreenOn(){try{if('wakeLock' in navigator)wakeLock=await navigator.wakeLock.request('screen');}catch(e){}}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&rec&&rec.state!=='inactive')lockScreenOn();});
+
+async function getStream(){
+  if(settings.mode==='audio')return navigator.mediaDevices.getUserMedia({audio:true});
+  const video={width:{ideal:1280},height:{ideal:720}};
+  try{ // insist on the chosen camera first
+    return await navigator.mediaDevices.getUserMedia({audio:true,video:{...video,facingMode:{exact:settings.cam}}});
+  }catch(e){
+    if(e.name==='NotAllowedError')throw e;
+    return navigator.mediaDevices.getUserMedia({audio:true,video:{...video,facingMode:settings.cam}});
+  }
+}
+
+$('recBtn').onclick=async()=>{
+  msg('');
+  if(!window.MediaRecorder||!navigator.mediaDevices){msg('Recording is not supported here. Open the link in Safari (iOS 14.3+).');return;}
+  try{stream=await getStream();}
+  catch(e){msg('Permission denied. Allow Microphone'+(settings.mode==='video'?' & Camera':'')+' for this site in Settings › Safari.');return;}
+  curMode=settings.mode;
+  mime=pickMime(curMode);
+  rec=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
+  chunks=[];rec.ondataavailable=e=>e.data&&e.data.size&&chunks.push(e.data);
+  rec.onstop=finish;
+  rec.start(1000);
+  startT=Date.now();pausedTotal=0;
+
+  const isVideo=curMode==='video';
+  if(isVideo){
+    $('preview').srcObject=stream;
+    $('preview').classList.toggle('mirror',settings.cam==='user'); // mirror only the selfie preview
+    setPreview(settings.preview);
+    $('camTag').textContent='· '+(settings.cam==='user'?'Front':'Back');
+  }else{
+    setPreview(false);$('camTag').textContent='';
+  }
+  $('pvBtn').classList.toggle('hidden',!isVideo);
+  $('recScreen').classList.add('show');$('recScreen').style.opacity=1;
+  $('status').classList.remove('paused');$('pauseBtn').textContent='Pause';
+  sizeCanvas();lockScreenOn();
+};
+$('pauseBtn').onclick=()=>{if(!rec)return;
+  if(rec.state==='recording'){rec.pause();pauseStart=Date.now();$('pauseBtn').textContent='Resume';$('status').classList.add('paused');}
+  else if(rec.state==='paused'){rec.resume();pausedTotal+=Date.now()-pauseStart;$('pauseBtn').textContent='Pause';$('status').classList.remove('paused');}};
+$('dimBtn').onclick=()=>{const s=$('recScreen');s.style.opacity=s.style.opacity==='0.35'?1:0.35;};
+$('stopBtn').onclick=()=>{if(rec&&rec.state!=='inactive'){window._dur=elapsed();rec.stop();}};
+
+async function finish(){
+  stream.getTracks().forEach(t=>t.stop());$('preview').srcObject=null;setPreview(false);
+  if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null;}
+  $('recScreen').classList.remove('show');
+  const type=rec.mimeType||mime||(curMode==='audio'?'audio/mp4':'video/mp4');
+  const blob=new Blob(chunks,{type});
+  const d=new Date();
+  const ext=type.includes('webm')?'webm':(type.startsWith('audio')?'m4a':'mp4');
+  const r={id:d.getTime(),kind:type.startsWith('video')?'video':'audio',type,ext,blob,dur:window._dur||0,
+    name:`${type.startsWith('video')?'Video':'Recording'} ${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}.${pad(d.getMinutes())}.${pad(d.getSeconds())}`};
+  try{await saveRec(r);}catch(e){msg('Could not save to device storage – use Share now.');}
+  render([r]);
+}
+
+/* ========== List ========== */
+async function render(extra){
+  let recs=[];try{recs=await allRecs();}catch(e){}
+  if(extra)extra.forEach(x=>{if(!recs.find(r=>r.id===x.id))recs.push(x);});
+  recs.sort((a,b)=>b.id-a.id);
+  const L=$('list');L.innerHTML='';
+  if(!recs.length){L.innerHTML='<div class="empty">No recordings yet</div>';return;}
+  recs.forEach(r=>{
+    const url=URL.createObjectURL(r.blob);
+    const el=document.createElement('div');el.className='item';
+    el.innerHTML=`<div class="top"><div class="name"></div><div class="meta">${fmtDur(r.dur)} · ${(r.blob.size/1048576).toFixed(1)} MB</div></div>
+      <${r.kind} controls playsinline preload="metadata" src="${url}"></${r.kind}>
+      <div class="acts"><button class="sh">Share / Save</button><button class="ren">Rename</button><button class="del">Delete</button></div>`;
+    el.querySelector('.name').textContent=r.name;
+    el.querySelector('.sh').onclick=async()=>{
+      const f=new File([r.blob],`${r.name}.${r.ext}`,{type:r.type});
+      if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:r.name});}catch(e){}}
+      else{const a=document.createElement('a');a.href=url;a.download=f.name;a.click();}};
+    el.querySelector('.ren').onclick=async()=>{const n=prompt('Rename recording',r.name);
+      if(n&&n.trim()){r.name=n.trim();await saveRec(r);render();}};
+    el.querySelector('.del').onclick=async()=>{if(confirm('Delete this recording?')){await delRec(r.id);render();}};
+    L.appendChild(el);});
+}
+
+applySettingsUI();render();requestAnimationFrame(tick);
+</script>
+</body>
+</html>
